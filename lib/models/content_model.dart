@@ -1,6 +1,6 @@
 import 'dart:convert';
 
-enum ContentType { image, video }
+enum ContentType { image, video, gif }
 
 class ContentItem {
   final String id;
@@ -39,7 +39,11 @@ class ContentItem {
   factory ContentItem.fromMap(Map<String, dynamic> map) {
     return ContentItem(
       id: map['id'],
-      type: map['type'] == 'video' ? ContentType.video : ContentType.image,
+      type: map['type'] == 'video'
+          ? ContentType.video
+          : map['type'] == 'gif'
+          ? ContentType.gif
+          : ContentType.image,
       text: map['text'],
       backgroundPath: map['backgroundPath'],
       language: map['language'],
@@ -51,5 +55,6 @@ class ContentItem {
 
   String toJson() => json.encode(toMap());
 
-  factory ContentItem.fromJson(String source) => ContentItem.fromMap(json.decode(source));
+  factory ContentItem.fromJson(String source) =>
+      ContentItem.fromMap(json.decode(source));
 }

@@ -17,17 +17,22 @@ class QueryService {
     _allContent = DataService.allContent;
   }
 
-  List<ContentItem> getContent(String language, String category) {
+  List<ContentItem> getContent(
+    List<String> languages,
+    List<String> categories, [
+    List<ContentType>? types,
+  ]) {
     // Filter by language and category
-    List<ContentItem> filtered = _allContent
-        .where(
-          (item) =>
-              (item.language == language ||
-                  item.language ==
-                      'English') && // Include English as fallback or mixed
-              item.category == category,
-        )
-        .toList();
+    List<ContentItem> filtered = _allContent.where((item) {
+      final langMatch =
+          languages.isEmpty ||
+          languages.contains(item.language) ||
+          (languages.contains('English') && item.language == 'English');
+      final catMatch = categories.isEmpty || categories.contains(item.category);
+      final typeMatch =
+          types == null || types.isEmpty || types.contains(item.type);
+      return langMatch && catMatch && typeMatch;
+    }).toList();
 
     // Remove seen items
     List<ContentItem> unseen = filtered
@@ -35,22 +40,28 @@ class QueryService {
         .toList();
 
     if (unseen.isEmpty) {
-      // If all seen, reset for this category or just return seen ones randomly
-      // Specification says "It should not give the same suggestion before exhausting the rest"
-      // So if exhausted, we can reset or just return empty to trigger "No more content"
-      // Let's reset seen list for these specific items to allow re-viewing effectively in a loop,
-      // or just return from all filtered (shuffled).
-      return []; // Deprecated in favor of getNextItem for the reels UI
+      return [];
     }
 
     return _shuffle(unseen);
   }
 
-  ContentItem? getNextItem(String language, String category) {
+  ContentItem? getNextItem(
+    List<String> languages,
+    List<String> categories, {
+    List<ContentType>? types,
+  }) {
     // Filter by language and category
-    List<ContentItem> filtered = _allContent
-        .where((item) => item.language == language && item.category == category)
-        .toList();
+    List<ContentItem> filtered = _allContent.where((item) {
+      final langMatch =
+          languages.isEmpty ||
+          languages.contains(item.language) ||
+          (languages.contains('English') && item.language == 'English');
+      final catMatch = categories.isEmpty || categories.contains(item.category);
+      final typeMatch =
+          types == null || types.isEmpty || types.contains(item.type);
+      return langMatch && catMatch && typeMatch;
+    }).toList();
 
     if (filtered.isEmpty) return null;
 

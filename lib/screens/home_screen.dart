@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../models/user_model.dart';
 import 'selection_screen.dart';
 
@@ -15,7 +16,35 @@ class _HomeScreenState extends State<HomeScreen> {
   final _nameController = TextEditingController();
   File? _imageFile;
   final _picker = ImagePicker();
-  final bool _isLoading = false;
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkLoginStatus();
+  }
+
+  Future<void> _checkLoginStatus() async {
+    final prefs = await SharedPreferences.getInstance();
+    final name = prefs.getString('userName');
+    final imagePath = prefs.getString('userImage');
+
+    if (name != null && name.isNotEmpty) {
+      final user = UserModel(name: name, imagePath: imagePath);
+      if (mounted) {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => SelectionScreen(user: user)),
+        );
+      }
+    } else {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
+  }
 
   Future<void> _pickImage() async {
     final XFile? pickedFile = await _picker.pickImage(
@@ -28,24 +57,32 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  void _navigateToSelection() {
+  Future<void> _navigateToSelection() async {
     if (_nameController.text.trim().isEmpty) {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text('Please enter your name')));
       return;
     }
-    // Image is optional but recommended. We'll proceed.
 
-    final user = UserModel(
-      name: _nameController.text.trim(),
-      imagePath: _imageFile?.path,
-    );
+    final name = _nameController.text.trim();
+    final imagePath = _imageFile?.path;
 
-    Navigator.push(
-      context,
-      MaterialPageRoute(builder: (context) => SelectionScreen(user: user)),
-    );
+    // Save to SharedPreferences
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('userName', name);
+    if (imagePath != null) {
+      await prefs.setString('userImage', imagePath);
+    }
+
+    final user = UserModel(name: name, imagePath: imagePath);
+
+    if (mounted) {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (context) => SelectionScreen(user: user)),
+      );
+    }
   }
 
   @override

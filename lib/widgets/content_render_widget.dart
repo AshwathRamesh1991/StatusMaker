@@ -38,15 +38,27 @@ class _ContentRenderWidgetState extends State<ContentRenderWidget> {
   void initState() {
     super.initState();
     if (widget.item.type == ContentType.video) {
-      // Asset video
-      _videoController = VideoPlayerController.asset(widget.item.backgroundPath)
-        ..initialize().then((_) {
+      // Safer check: Assets in this project always start with 'assets'
+      // Local files (from picker) will be absolute paths like /data/...
+      if (widget.item.backgroundPath.startsWith('assets')) {
+        _videoController = VideoPlayerController.asset(
+          widget.item.backgroundPath,
+        );
+      } else {
+        _videoController = VideoPlayerController.file(
+          File(widget.item.backgroundPath),
+        );
+      }
+
+      _videoController!.initialize().then((_) {
+        if (mounted) {
           setState(() {
             _isInitialized = true;
           });
           _videoController!.setLooping(true);
           _videoController!.play();
-        });
+        }
+      });
     }
   }
 
@@ -71,66 +83,77 @@ class _ContentRenderWidgetState extends State<ContentRenderWidget> {
 
     try {
       final directory = await getTemporaryDirectory();
+      if (!mounted) return;
       debugPrint(
         "Sharing Content. User: ${widget.user.name}, Image: ${widget.user.imagePath}",
       );
 
       if (widget.item.type == ContentType.video) {
-        // 1. Capture Overlay Only (Transparent background)
+        // 1. Capture Overlay Only
         setState(() {
-          _hideVideoForCapture = true; // Video player becomes transparent
+          _hideVideoForCapture = true;
         });
 
-        // Wait for rebuild
         await Future.delayed(const Duration(milliseconds: 200));
+        if (!mounted) return;
 
         final overlayPath = await _screenshotController.captureAndSave(
           directory.path,
           fileName: 'overlay_${DateTime.now().millisecondsSinceEpoch}.png',
-          pixelRatio: 1.0, // Match device ratio to avoid scaling issues
+          pixelRatio: 1.0,
         );
-        debugPrint("Overlay captured at: $overlayPath");
+        if (!mounted) return;
 
         setState(() {
-          _hideVideoForCapture = false; // Restore video
+          _hideVideoForCapture = false;
         });
 
         if (overlayPath == null) throw Exception("Failed to capture overlay");
 
-        // 2. Prepare Video Asset
-        final byteData = await rootBundle.load(widget.item.backgroundPath);
-        final videoPath = '${directory.path}/original_video.mp4';
-        final videoFile = File(videoPath);
-        await videoFile.writeAsBytes(
-          byteData.buffer.asUint8List(
-            byteData.offsetInBytes,
-            byteData.lengthInBytes,
-          ),
-        );
+        // 2. Prepare Video Source
+        String videoPath;
+        if (widget.item.backgroundPath.startsWith('assets')) {
+          // It's an asset, copy to temp
+          final byteData = await rootBundle.load(widget.item.backgroundPath);
+          if (!mounted) return;
+          videoPath = '${directory.path}/original_video.mp4';
+          final videoFile = File(videoPath);
+          await videoFile.writeAsBytes(
+            byteData.buffer.asUint8List(
+              byteData.offsetInBytes,
+              byteData.lengthInBytes,
+            ),
+          );
+        } else {
+          // It's a local file, usage directly
+          videoPath = widget.item.backgroundPath;
+        }
 
-        // 3. Run FFmpeg to overlay with Scaling
+        // 3. Run FFmpeg ... (rest implies videoPath is valid)
         final outputPath =
             '${directory.path}/shared_video_${DateTime.now().millisecondsSinceEpoch}.mp4';
 
-        // Get Video Dimensions to ensure overlay matches perfectly
+        if (!mounted ||
+            _videoController == null ||
+            !_videoController!.value.isInitialized)
+          return;
         final videoWidth = _videoController!.value.size.width.toInt();
         final videoHeight = _videoController!.value.size.height.toInt();
 
-        // Command: Scale overlay (input 1) to video size (input 0) then overlay
-        // [1:v]scale=W:H[ovrl];[0:v][ovrl]overlay=0:0
+        // Ensure even dimensions for some encoders, though scale usually handles it
+        // ... (FFmpeg command remains similar)
+
         final command =
             '-i "$videoPath" -i "$overlayPath" -filter_complex "[1:v]scale=$videoWidth:$videoHeight[ovrl];[0:v][ovrl]overlay=0:0" -c:v libx264 -preset ultrafast "$outputPath"';
 
         debugPrint("Running FFmpeg: $command");
 
         await FFmpegKit.execute(command).then((session) async {
+          if (!mounted) return;
           final returnCode = await session.getReturnCode();
-          final logs = await session.getLogs();
-          for (var log in logs) {
-            debugPrint(log.getMessage());
-          }
 
           if (ReturnCode.isSuccess(returnCode)) {
+            if (!mounted) return;
             await Share.shareXFiles([
               XFile(outputPath),
             ], text: '${widget.item.text}\n\nSent via StatusMaker');
@@ -139,14 +162,13 @@ class _ContentRenderWidgetState extends State<ContentRenderWidget> {
           }
         });
       } else {
-        // Image sharing (standard screenshot)
-        // Using pixelRatio 1.0 to ensure layout accuracy and avoid memory issues
+        // ... Image sharing (unchanged)
         final imagePath = await _screenshotController.captureAndSave(
           directory.path,
           fileName: 'status_share_${DateTime.now().millisecondsSinceEpoch}.png',
           pixelRatio: 1.0,
         );
-        debugPrint("Image captured at: $imagePath");
+        if (!mounted) return;
 
         if (imagePath != null) {
           await Share.shareXFiles([
@@ -174,7 +196,6 @@ class _ContentRenderWidgetState extends State<ContentRenderWidget> {
     return Stack(
       fit: StackFit.expand,
       children: [
-        // Content to be captured
         Screenshot(
           controller: _screenshotController,
           child: Stack(
@@ -184,9 +205,7 @@ class _ContentRenderWidgetState extends State<ContentRenderWidget> {
               widget.item.type == ContentType.video
                   ? (_isInitialized && _videoController != null
                         ? (_hideVideoForCapture
-                              ? Container(
-                                  color: Colors.transparent,
-                                ) // Transparent placeholder for overlay capture
+                              ? Container(color: Colors.transparent)
                               : FittedBox(
                                   fit: BoxFit.cover,
                                   child: SizedBox(
@@ -196,7 +215,25 @@ class _ContentRenderWidgetState extends State<ContentRenderWidget> {
                                   ),
                                 ))
                         : const Center(child: CircularProgressIndicator()))
-                  : Image.asset(widget.item.backgroundPath, fit: BoxFit.cover),
+                  : widget.item.backgroundPath.startsWith('assets')
+                  ? Image.asset(widget.item.backgroundPath, fit: BoxFit.cover)
+                  : Image.file(
+                      File(widget.item.backgroundPath),
+                      fit: BoxFit.cover,
+                      errorBuilder: (context, error, stackTrace) {
+                        return Container(
+                          color: Colors.grey,
+                          child: const Center(
+                            child: Icon(
+                              Icons.broken_image,
+                              color: Colors.white,
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+
+              // ... rest of build stack
 
               // Overlay - Gradient for legibility
               Container(

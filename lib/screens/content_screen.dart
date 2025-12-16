@@ -8,15 +8,17 @@ import '../widgets/content_render_widget.dart';
 
 class ContentScreen extends StatefulWidget {
   final UserModel user;
-  final String? language;
-  final String? category;
+  final List<String> languages;
+  final List<String> categories;
+  final List<ContentType>? types;
   final bool showFavorites;
 
   const ContentScreen({
     super.key,
     required this.user,
-    this.language, // Nullable if favorites
-    this.category, // Nullable if favorites
+    this.languages = const [],
+    this.categories = const [],
+    this.types,
     this.showFavorites = false,
   });
 
@@ -68,8 +70,9 @@ class _ContentScreenState extends State<ContentScreen> {
 
     for (int i = 0; i < count; i++) {
       final item = QueryService().getNextItem(
-        widget.language!,
-        widget.category!,
+        widget.languages,
+        widget.categories,
+        types: widget.types,
       );
       if (item != null) {
         _displayItems.add(item);
