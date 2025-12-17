@@ -44,8 +44,8 @@ class _ContentScreenState extends State<ContentScreen> {
     if (widget.showFavorites) {
       // Favorites mode: Load all once (Finite)
       final favService = context.read<FavoritesService>();
-      final favIds = favService.getFavorites();
-      final items = QueryService().getByIds(favIds);
+      final items = favService.getFavorites();
+      // final items = QueryService().getByIds(favIds); // No longer needed
       if (mounted) {
         setState(() {
           _displayItems.addAll(items);
@@ -85,14 +85,20 @@ class _ContentScreenState extends State<ContentScreen> {
     return Scaffold(
       backgroundColor: Colors.black, // Immersive
       extendBodyBehindAppBar: true,
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.white, size: 30),
-          onPressed: () => Navigator.pop(context),
-        ),
-      ),
+      appBar: widget.showFavorites
+          ? null // No AppBar for Favorites (or custom one if needed, but definitely no back button)
+          : AppBar(
+              backgroundColor: Colors.transparent,
+              elevation: 0,
+              leading: IconButton(
+                icon: const Icon(
+                  Icons.arrow_back,
+                  color: Colors.white,
+                  size: 30,
+                ),
+                onPressed: () => Navigator.pop(context),
+              ),
+            ),
       body: _isLoading
           ? Center(
               child: Column(

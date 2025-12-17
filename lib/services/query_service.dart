@@ -1,4 +1,5 @@
 import 'dart:math';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../models/content_model.dart';
 import 'data_service.dart';
 
@@ -12,9 +13,13 @@ class QueryService {
   final Random _random = Random();
 
   List<ContentItem> _allContent = [];
+  SharedPreferences? _prefs;
+  static const String _seenKey = 'seen_content_ids';
 
-  void initialize() {
+  Future<void> initialize() async {
     _allContent = DataService.allContent;
+    _prefs = await SharedPreferences.getInstance();
+    _seenContentIds.addAll(_prefs?.getStringList(_seenKey) ?? []);
   }
 
   List<ContentItem> getContent(
@@ -71,16 +76,22 @@ class QueryService {
         .toList();
 
     // If all items seen, reset seen list for these items to allow looping
+    // If all items seen, reset seen list for these items to allow looping (only for this criteria)
     if (unseen.isEmpty) {
+      // Logic: If we've seen everything matching this filter, we need to "forget" that we saw them
+      // so we can show them again. But we shouldn't forget *everything*, just the ones that match.
+      // However, simple approach: If *filtered* results are all in *seen*, remove them from *seen*.
       for (var item in filtered) {
         _seenContentIds.remove(item.id);
       }
+      _prefs?.setStringList(_seenKey, _seenContentIds); // Update persistence
       unseen = filtered;
     }
 
     // Pick a random unseen item
     final item = unseen[_random.nextInt(unseen.length)];
     _seenContentIds.add(item.id);
+    _prefs?.setStringList(_seenKey, _seenContentIds); // Persist update
     return item;
   }
 

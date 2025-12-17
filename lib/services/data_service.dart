@@ -65,9 +65,7 @@ class DataService {
             return MapEntry(
               index,
               ContentItem(
-                id:
-                    DateTime.now().millisecondsSinceEpoch.toString() +
-                    index.toString(), // Unique ID
+                id: 'quote_$index', // Deterministic ID
                 type: type,
                 text: item['text'],
                 backgroundPath: bgPath,

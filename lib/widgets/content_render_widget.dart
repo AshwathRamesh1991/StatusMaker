@@ -69,7 +69,7 @@ class _ContentRenderWidgetState extends State<ContentRenderWidget> {
   }
 
   void _toggleFavorite() {
-    context.read<FavoritesService>().toggleFavorite(widget.item.id);
+    context.read<FavoritesService>().toggleFavorite(widget.item);
     setState(() {
       // Force rebuild to show updated icon if we were using local state
     });
@@ -90,24 +90,29 @@ class _ContentRenderWidgetState extends State<ContentRenderWidget> {
 
       if (widget.item.type == ContentType.video) {
         // 1. Capture Overlay Only
-        setState(() {
-          _hideVideoForCapture = true;
-        });
+        String? overlayPath;
+        try {
+          setState(() {
+            _hideVideoForCapture = true;
+          });
 
-        await Future.delayed(const Duration(milliseconds: 200));
+          await Future.delayed(const Duration(milliseconds: 200));
+          if (!mounted) return;
+
+          overlayPath = await _screenshotController.captureAndSave(
+            directory.path,
+            fileName: 'overlay_${DateTime.now().millisecondsSinceEpoch}.png',
+            pixelRatio: 1.0,
+          );
+        } finally {
+          if (mounted) {
+            setState(() {
+              _hideVideoForCapture = false;
+            });
+          }
+        }
+
         if (!mounted) return;
-
-        final overlayPath = await _screenshotController.captureAndSave(
-          directory.path,
-          fileName: 'overlay_${DateTime.now().millisecondsSinceEpoch}.png',
-          pixelRatio: 1.0,
-        );
-        if (!mounted) return;
-
-        setState(() {
-          _hideVideoForCapture = false;
-        });
-
         if (overlayPath == null) throw Exception("Failed to capture overlay");
 
         // 2. Prepare Video Source
@@ -135,8 +140,9 @@ class _ContentRenderWidgetState extends State<ContentRenderWidget> {
 
         if (!mounted ||
             _videoController == null ||
-            !_videoController!.value.isInitialized)
+            !_videoController!.value.isInitialized) {
           return;
+        }
         final videoWidth = _videoController!.value.size.width.toInt();
         final videoHeight = _videoController!.value.size.height.toInt();
 
