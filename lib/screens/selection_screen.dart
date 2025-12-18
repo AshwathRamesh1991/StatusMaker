@@ -6,6 +6,7 @@ import '../services/data_service.dart';
 import 'content_screen.dart';
 import 'create_status_screen.dart';
 import 'profile_screen.dart';
+import 'search_screen.dart';
 
 class SelectionScreen extends StatefulWidget {
   final UserModel user;
@@ -290,17 +291,15 @@ class _SelectionScreenState extends State<SelectionScreen> {
         body = _buildSelectionBody();
         break;
       case 1:
-        // Favorites
-        // Reuse ContentScreen but maybe wrapped to hide back button?
-        // Actually ContentScreen is a Scaffold. If we put Scaffold inside Scaffold body, it's okay but not ideal.
-        // For now, let's just use it. We might need to update ContentScreen to hide AppBar if showFavorites is true
-        // OR wrapper.
-        body = ContentScreen(user: _currentUser, showFavorites: true);
+        body = SearchScreen(user: _currentUser);
         break;
       case 2:
-        body = CreateStatusScreen(user: _currentUser);
+        body = ContentScreen(user: _currentUser, showFavorites: true);
         break;
       case 3:
+        body = CreateStatusScreen(user: _currentUser);
+        break;
+      case 4:
         body = ProfileScreen(user: _currentUser, onUpdate: _updateUser);
         break;
       default:
@@ -334,6 +333,10 @@ class _SelectionScreenState extends State<SelectionScreen> {
           const BottomNavigationBarItem(
             icon: Icon(Icons.home_filled),
             label: 'Home',
+          ),
+          const BottomNavigationBarItem(
+            icon: Icon(Icons.search),
+            label: 'Search',
           ),
           const BottomNavigationBarItem(
             icon: Icon(Icons.favorite),
